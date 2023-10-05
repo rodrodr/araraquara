@@ -1,0 +1,358 @@
+---
+title: "Dia 2 - Pré-processamento"
+author: "Rodrigo Rodrigues-Silveira"
+format: html
+---
+
+## Introdução: O que fazer antes de começar?
+
+Os primeiros passos da análise sempre consistem em preparar o corpus para que possa ser trabalhado. Entrevistas devem ser transcritas; documentos em papel escaneados e, depois, ser submetidos à um OCR. Certas vezes, é necessário corrigir a estrutura de um parágrafo (eliminar os saltos de linha quando não correspondem ao final de uma parágrafo). Em outras, o processo inclui também baixar os dados da internet via *web scraping*. Tudo dependendo da complexidade do projeto. Nos casos mais simples, o pré-processamento será relativamente rápido e pode, inclusive, ser manual. Em outros, o volume de documentos ou informação pedirá que se desenvolvam algoritmos para baixar, tratar e preparar os dados antes da análise ser possível.  
+
+O objetivo da sessão de hoje é aprender a abrir os arquivos de texto no R. Trabalhar com texto utilizando ferramentas de busca e expressões regulares e dar os primeiros passos na análise dos conteúdos.
+
+
+
+## Abrir os arquivos
+
+Uma forma fácil de abrir arquivos no R consiste em utilizar a função *readtext* do pacote com o mesmo nome para ler um ou mais arquivos de uma vez. Depois, utilizaremos o pacote quanteda para converter esses textos em um objeto *corpus*, que poderá ser utilizado por uma série de funções de análise. O código abaixo carrega todos os discursos de posse dos presidentes brasileiros, de Deodoro da Fonseca até Lula 2023. 
+
+```{r, warning=T, message=FALSE, error=FALSE}
+
+# Carrega os pacotes básicos
+library(readtext)
+library(quanteda)
+library(stringi)
+
+# Carrega os textos
+tx <- readtext("../../Data/Discursos_Presidentes/")
+
+# Retira os acentos
+tx$text <- stri_trans_general(tx$text, "ascii")
+
+# Converte tudo em minúsculas
+tx$text <- tolower(tx$text)
+
+# Cria o corpus
+cp <- corpus(tx)
+
+# Documenta
+docvars(cp, "Presidente") <- c("Deodoro da Fonseca","Floriano Peixoto",
+                               "Prudente de Moraes","Campos Sales",
+                               "Rodrigues Alvez","Affonso Penna",
+                               "Hermes da Fonseca", "Wenceslau Bras",
+                               "Epitacio Pessoa", "Arthur Bernardes",
+                               "Washingtonn Luis","Getulio Vargas",
+                               "Getulio Vargas","Getulio Vargas",
+                               "Eurico Gaspar Dutra","Getulio Vargas",
+                               "Juscelino Kubitschek", "Janio Quadros",
+                               "Joao Goulart","Castelo Branco",
+                               "Costa e Silva","Emilio Garrastazu Medici",
+                               "Ernesto Geisel", "Joao Batista Figueiredo",
+                               "Jose Sarney", "Tancredo Neves",
+                               "Fernando Collor de Melo", "Itamar Franco",
+                               "Fernando Henrique Cardoso","Fernando Henrique Cardoso",
+                               "Luis Inacio Lula da Silva", "Luis Inacio Lula da Silva",
+                               "Dilma Rousseff","Dilma Rousseff",
+                               "Michel Temer", "Jair Bolsonaro",
+                               "Luis Inacio Lula da Silva")
+
+reactable::reactable(summary(cp),
+                     resizable = T,
+                     sortable = T,
+                     filterable = T)
+
+```
+
+
+No caso abaixo, repetimos a operação, mas agora com PDFs das PECs de 2023:
+
+```{r}
+
+library(readr)
+
+tx <- readtext("../../Data/PEC/")
+
+ce <- corpus(tx)
+
+reactable::reactable(summary(ce),
+                     resizable = T, 
+                     wrap = F)
+
+```
+
+Também podemos reorganizar a estructura dos textos de um documento inteiro à frases ou parágrafos:
+
+```{r}
+
+cs <- corpus_reshape(cp, "sentences")
+
+# Visualiza os 100 primeiros resultados
+reactable::reactable(summary(cs),
+                     resizable = T, 
+                     wrap = F)
+
+```
+
+O passo seguinte consiste em dividir o texto em tokens (palavras):
+
+
+```{r}
+
+# Divide em palavras
+tk <- tokens(cp)
+
+# Cria um objeto dfm
+fm <- dfm(tk)
+
+# Buscamos as 50 palavras mais frequentes
+topfeatures(fm, n = 50)
+
+
+```
+
+
+Agora a gente faz direito e remove a pontuação, conectores, etc:
+
+
+```{r}
+
+tk <- tokens(cp, remove_numbers = T,remove_symbols = T, remove_punct = T)
+
+tk <- tokens_remove(tk, stopwords(language = "pt"))
+
+# Cria um objeto dfm
+fm <- dfm(tk)
+
+# Buscamos as 50 palavras mais frequentes
+topfeatures(fm, n = 50)
+
+
+```
+
+Raízes:
+
+```{r}
+
+# Converte as palavras em suas raízes
+fw <- dfm_wordstem(fm, language = "pt")
+
+# Procuramos as 50 palavras mais frequentes
+topfeatures(fw, n = 50)
+```
+
+
+
+Trabalhamos com N-gramas:
+
+```{r}
+
+tk <- tokens(cp, remove_numbers = T,remove_symbols = T, remove_punct = T)
+
+tk <- tokens_remove(tk, stopwords(language = "pt"))
+
+tk <- tokens_ngrams(tk, 2)
+
+# Cria um objeto dfm
+fm <- dfm(tk)
+
+# Buscamos as 50 palavras mais frequentes
+topfeatures(fm, n = 50)
+
+
+```
+
+
+Nuvens de palavras:
+
+
+```{r}
+
+library(quanteda.textplots)
+library(tenet)
+library(wordcloud)
+
+
+tk <- tokens(cp, remove_numbers = T,remove_symbols = T, remove_punct = T)
+
+tk <- tokens_remove(tk, stopwords(language = "pt"))
+
+# Cria um objeto dfm
+fm <- dfm(tk)
+
+
+ft <-topfeatures(fm, 50)
+
+par(mar=rep(0,4))
+wordcloud(names(ft), 
+          freq = ft, 
+          colors = pal$cat.cartocolor.antique.11)
+
+```
+
+Frequência relativa e absoluta:
+
+
+```{r}
+
+
+# Buscamos as 25 palabras mais frequentes
+ft <- topfeatures(fm, n = 25)
+
+# Adicionamos a frequencia relativa 
+fp <- dfm_weight(fm, "prop")
+
+# Repete a busca para a frequencia relativa
+fr <- topfeatures(fp, n = 25)
+
+# Converte os resultados em um data.frame
+xx <- data.frame(Palabra=names(ft), Frec.Abs=ft, Frec.Rel=fr)
+
+# Carrega o pacote ggplot2
+library(ggplot2)
+library(gridExtra)
+library(grid)
+
+# Gera um gráfico de barras para visualizar a frequencia das palavras
+p1 <- ggplot(xx, aes(x=Frec.Abs, y=reorder(Palabra, Frec.Abs)))+
+  geom_bar(stat="identity", fill="darkgreen")+
+  theme_classic()+
+  labs(title="Frequência ABSOLUTA")+
+  ylab("")+
+  xlab("Frequência Absoluta")
+
+p2 <- ggplot(xx, aes(x=Frec.Rel, y=reorder(Palabra, Frec.Rel)))+
+  geom_bar(stat="identity", fill="orange")+
+  theme_classic()+
+  labs(title="Frequência RELATIVA")+
+  ylab("")+
+  xlab("Frequência Relativa")
+
+# A função grid.arrange permite posicionar vários gráficos lado a lado ou um em cima do outro
+grid.arrange(p1,p2, ncol=2)
+
+```
+
+
+Frequência por presidente:
+
+```{r}
+
+# Cria um objeto dfm
+fg <- dfm_group(fm, groups = quanteda::docvars(cp, "Presidente"))
+
+
+# Buscamos as 25 palavras mais frequentes para cada presidente
+ft <- topfeatures(fg, n = 25, 
+                  groups = quanteda::docvars(fg, "Presidente"))
+
+# Gera uma frequência relativa
+fgw <- dfm_weight(fg, scheme="prop")
+
+ftg <- topfeatures(fgw, n = 25, 
+                  groups = quanteda::docvars(fg, "Presidente"))
+
+# Cria uma base de dados a partir dessas informações
+nm <- names(ft)
+xx <- data.frame()
+for(i in 1:length(nm)){
+  xx <- rbind(xx, data.frame(
+                          Presidente=nm[i], 
+                          Palabras=names(ft[[i]]), 
+                          Freq=as.numeric(ft[[i]]),
+                          Freq.Rel=round(as.numeric(ftg[[i]]),3)))
+}
+
+# Visualiza
+library(htmltools)
+
+# Render a bar chart with a label on the left
+bar_chart <- function(label, width = "100%", height = "1rem", fill = "#00bfc4", background = NULL) {
+  bar <- div(style = list(background = fill, width = width, height = height))
+  chart <- div(style = list(flexGrow = 1, marginLeft = "0.5rem", background = background), bar)
+  div(style = list(display = "flex", alignItems = "center"), label, chart)
+}
+
+library(reactable)
+
+reactable(
+  xx,
+  filterable = T,
+  columns = list(
+    Presidente=colDef(name="Presidente"),
+    Freq = colDef(name = "Frequência", align = "left", cell = function(value) {
+      width <- paste0(value / max(xx$Freq) * 100, "%")
+      bar_chart(value, width = width)
+    }),
+    Freq.Rel = colDef(name = "Freq. Relativa", align = "left", cell = function(value) {
+      width <- paste0(value / max(xx$Freq.Rel) * 100, "%")
+      bar_chart(value, width = width, fill="red")
+    })
+  )
+)
+
+```
+
+
+Razão de probabilidades:
+
+
+```{r}
+
+# Agrupa os textos segundo o presidente
+ci <- corpus_group(cp, groups = Presidente)
+
+# Calcula a probabilidade de um presidente de 
+# referência utilizar uma palavra
+plotLogOddsRatio(corpus = ci, 
+                  ref.cat = "Luis Inacio Lula da Silva")
+
+
+
+```
+
+
+
+Relação entre palavras: a co-ocorrência
+
+```{r}
+
+# Cria uma matriz de co-ocorrência
+fc <- fcm(tk)
+
+# Seleciona as 50 co-ocorrôncias mais frequentes
+feat <- names(topfeatures(fc, 50))
+
+fc <- fcm_select(fc, pattern = feat) 
+
+# carrega o pacote
+library(quanteda.textplots)
+
+# gera a rede
+library(ggplot2)
+set.seed(pi)
+textplot_network(fc, 
+                 edge_color = "red", 
+                 edge_alpha = 0.05, omit_isolated = T)
+
+```
+
+Co-localizações:
+
+```{r}
+
+
+library(quanteda.textstats)
+
+# Gera uma lista de 2 palavras que aparecem em sequência
+cc <- textstat_collocations(tk, size = 2)
+
+reactable(cc, 
+          resizable=T, 
+          rownames = F, 
+          columns = list(
+                        lambda=colDef(format=colFormat(digits=2)),
+                        z=colDef(format=colFormat(digits = 2))))
+```
+
+
+
