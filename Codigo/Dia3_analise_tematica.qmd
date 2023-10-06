@@ -1,0 +1,388 @@
+---
+title: "Dia 3 - Análise temática"
+author: "Rodrigo Rodrigues-Silveira"
+format: html
+---
+
+## Análise de temas em um corpus maior
+
+
+Corpus de discursos presidenciais
+
+
+```{r, warning=T, message=FALSE, error=FALSE}
+
+# Carrega os pacotes básicos
+library(readtext)
+library(quanteda)
+library(stringi)
+
+# Carrega os textos
+tx <- readtext("../../Data/Discursos_Presidentes/")
+
+# Retira os acentos
+tx$text <- stri_trans_general(tx$text, "ascii")
+
+
+# Cria o corpus
+cp <- corpus(tx)
+
+# Documenta
+docvars(cp, "Presidente") <- c("Deodoro da Fonseca","Floriano Peixoto",
+                               "Prudente de Moraes","Campos Sales",
+                               "Rodrigues Alvez","Affonso Penna",
+                               "Hermes da Fonseca", "Wenceslau Bras",
+                               "Epitacio Pessoa", "Arthur Bernardes",
+                               "Washingtonn Luis","Getulio Vargas",
+                               "Getulio Vargas","Getulio Vargas",
+                               "Eurico Gaspar Dutra","Getulio Vargas",
+                               "Juscelino Kubitschek", "Janio Quadros",
+                               "Joao Goulart","Castelo Branco",
+                               "Costa e Silva","Emilio Garrastazu Medici",
+                               "Ernesto Geisel", "Joao Batista Figueiredo",
+                               "Jose Sarney", "Tancredo Neves",
+                               "Fernando Collor de Melo", "Itamar Franco",
+                               "Fernando Henrique Cardoso","Fernando Henrique Cardoso",
+                               "Luis Inacio Lula da Silva", "Luis Inacio Lula da Silva",
+                               "Dilma Rousseff","Dilma Rousseff",
+                               "Michel Temer", "Jair Bolsonaro",
+                               "Luis Inacio Lula da Silva")
+
+
+docvars(cp, "Ano") <- as.numeric(substr(tx$doc_id,1,4))
+
+```
+
+
+Podemos contar a frequencia de palavras no texto, como no caso de Google NGram Viewer:
+
+Paso 1: criamos uma função:
+
+```{r}
+
+# Funcao countNgram, que conta o 
+# número de vezes que um conjunto de palacras
+# aparece em um corpus.
+countNgram <- function(keywords, 
+                       corpus=NULL, 
+                       time=NULL, 
+                       rel.freq=TRUE){
+  
+  # Conta todos os termos da lista
+  tt <- outer(corpus, 
+              keywords, 
+              stringi::stri_count_regex)
+  
+  # Nomeia cada coluna da matriz de resultados 
+  # com esses termos
+  colnames(tt) <- keywords
+  
+  # Transforma os resultados em data.frame
+  tt <- data.frame(tt)
+  
+  # Se se deseja a frequencia relativa
+  if(rel.freq==TRUE){
+    
+    # Conta todas as palavras de todas
+    # as intervençoes de cada mes
+    count <- stringi::stri_count_words(corpus)
+
+    # Calcula a frequencia relativa
+    for(i in 1:ncol(tt)){
+      tt[,i] <- tt[,i]/count
+    }
+    
+  }
+
+  # Adiciona a identificacao do tempo
+  tt$Time <- time
+  
+  # Muda o formato dos datos
+  # (importante para gerar o gráfico
+  # em um formato ggplot2)
+  tt <- reshape2::melt(tt, id.vars = "Time")
+  
+  # Da nome as colunas
+  names(tt) <- c("Time","Keyword","Density")
+
+  # Devolve o resultado final
+  return(tt)
+      
+}
+
+```
+
+Agora contamos:
+
+
+```{r}
+
+
+ss <- convert(cp, "data.frame")
+
+# Ejecuta la función que cuenta los términos
+# por unidad de tiempo (en el caso cada mes)
+res <- countNgram(
+            keywords = c("progresso","desenvolvimento"), 
+            corpus = ss$text,
+            time = ss$Ano)
+
+# Multiplica la frecuencia relativa por 10 mil 
+# para facilitar la lectura de los datos y
+# reduce el número de dígitos decimales a 2.
+res$Density <- round(res$Density*10000,2)
+
+
+res <- res[order(res$Time),]
+
+# Enseña los resultados
+reactable(res,
+          resizable = T)
+
+```
+
+
+
+Criamos agora um gráfico:
+
+```{r}
+
+# Carrega o pacote ggplot2
+library(ggplot2)
+
+# Renomeia as variáveis para
+# que aparecam melhor no gráfico
+names(res) <- c("Mes","Keyword","Densidad")
+
+# Gera um gráfico de linha com
+# a evoluçao por ano de discurso
+# de cada termo
+p <- ggplot(res, 
+            aes(
+              x=Mes, 
+              y=Densidad,
+              color=Keyword))+
+  geom_line()+
+  theme_classic()+
+  theme(legend.position="bottom")+
+  scale_color_discrete(name="Termo")+
+  labs(
+    title="Discursos de posse (1889-2023)")+
+  xlab("Ano")+
+  ylab("Frequência (a cada 10 mil)")
+
+# Visualiza los resultados
+p
+
+```
+
+Agora passamos a analise temática
+
+
+Criamos um dicionário para efetuar a análise temática:
+
+```{r}
+
+# Criacao de um dicionario
+dic <- dictionary(list(
+      educacao=c("educ","escola","ENEM",
+                 "professor","ensin","ProUni",
+                 "universi","formac","instituto"),
+      saude=c("saude","sani","SUS", "vacina",
+              "hospi","medic",
+              "enfermeir","clínic"),
+      previdencia=c("previdencia","aposenta",
+                    "pensões","pensionist", "INSS"),
+      infraestrutura=c("infraestr","rodovia","trem",
+                    "estrada","eletric","siderur",
+                    "energi","telefo", "teleco",
+                    "porto","portuar","aeropor",
+                    "digital","telegraf","comunicacao",
+                    "petroleo","pre-sal","internet",
+                    "fibra otica","ferrovia",
+                    "tecnolog"),
+      trabalho=c("empreg","trabalh","desempreg", 
+                "13º", "ferias","pobre", "desigual",
+                "salario","operario","agricultor",
+                "sindica","carteira assinada"),
+      economia=c("divida","inflacao","crescimen", 
+                 "desenvolv","industri","export",
+                 "juros","econom","investi",
+                 "importac","moeda","comercio",
+                 "lavoura","agricola","agricultura",
+                 "agropecuaria", "\\bpecuaria\\b",
+                 "crescer"),
+      fiscal=c("CPMF","IMPF","ICMS","imposto",
+                "taxa","tribut","fisca","ITR",
+                "IPVA","IPTU","IPI","gasto",
+                "despesas publicas", "despesa publica"),
+      seguranca=c("seguranca","policia","assassin",
+                  "trafic","estupr","droga","penal",
+                  "militar","violen","homicid",
+                  "defesa nacional", "fronteira"),
+      forcas_armadas=c("exercito","forcas armadas",
+                       "marinha","quartel","quarteis",
+                       "aeronautica","soldados",
+                       "marinheiro", "tropa", "guerra",
+                       "combatente"),
+      exterior=c("itamaraty","exterior", "europa", 
+                 "estados unidos", "argentina", "uruguai",
+                 "paraguai","\\bfranca\\b","alemanha", "china",
+                 "africa","asia", "embaixad","consulado",
+                 "consul","\\bonu\\b","mercosul",
+                 "estrangeir", "BRICS","America Latina",
+                 "nacoes unidas", "conselho de seguranca",
+                 "politica externa"),
+      pos_material=c("racis","mulher","feminis","\\bgenero\\b",
+                "sexual","negro", "climat","desmat",
+                "incendi","gril","amazon","carbono",
+                "florest","ecolo","ambiente",
+                "feminicidio","biodiversidade",
+                "biomassa","eolica","ambiental"),
+      mudancas=c("revoluc","constituicao", "regime",
+                 "ditadura","golpe"),
+      nacional=c("patria","patriotic","nacao",
+                     "nacionalis","unidade nacional", 
+                     "soberania","povoamento"),
+      estado=c("executivo", "legislativo","judiciario",
+               "administracao","congresso federal", 
+               "congresso nacional", "senado","uniao",
+               "camara dos deputados", "camara do deputados"),
+      cultura=c("arte", "cultura", "artista","cinema", 
+                "teatro","folclore","musica", "literatura")
+      ))
+
+
+```
+
+Agora começamos a analizar:
+
+```{r}
+
+# Aplica o dicionário ao corpus
+library(tenet)
+tagCorpus(cp, 
+          reshape.to = "sentences",
+          defaultPageSize = 5,
+          dic, 
+          palette = pal$cat.awtools.bpalette.16)
+
+
+```
+
+
+```{r, warning=F, error=F, message=f}
+
+# Gera um gráfico de dispersão léxica
+plotLexDiv(cp, 
+           title = "**Dispersão léxica: nacional**",
+           keywords = dic$nacional)
+
+```
+
+
+```{r}
+
+
+# conta a frequencia de cada
+# termo do dicionario no corpus
+kw <- countKeywords(cp, 
+                    dic,
+                    quietly = TRUE)
+
+
+reactable::reactable(kw, resizable = T,
+                     sortable = T)
+
+
+```
+
+Visualiza com plotVoronoi:
+
+```{r}
+
+plotVoronoiTree(kw, 
+                groups = "level1",
+                elements = "keyword",
+                value="frequency", 
+                elementId = "Voro1",
+                type = "rectangle")
+
+
+```
+
+
+temas por presidente depois da redemocratizacao
+
+(ver como muda ao mudar de absoluta a relativa)
+
+```{r}
+
+
+cr <- corpus_subset(cp, Ano>1980)
+
+# temas por candidato
+
+kw <- countKeywords(cr,
+                    dic, 
+                    group.var = "Presidente",
+                    quietly = TRUE)
+
+kw <- kw[kw$frequency>0,]
+
+js <- jsonTree(kw,
+               groups = c("groups","level1"), 
+               elements = "keyword", 
+               value = "frequency")
+
+forceDirectedTree(js, max.radius = 10,
+                  show.link = T,
+                  attraction = -5, 
+                  palette = pal$cat.awtools.mpalette.9,
+                  elementId = "forceTemaCand")
+
+
+```
+
+
+Agora com Sankey:
+
+```{r}
+
+ag <- aggregate(list(value=kw$frequency),
+                by=list(groups=kw$groups,
+                        level1=kw$level1),
+                sum)
+
+plotSankey(ag, 
+          from = "groups",
+          to = "level1", 
+          value = "value")
+
+
+```
+
+
+Correlacao entre temas:
+
+```{r}
+
+cas <- corpus_reshape(cp, to = "paragraphs")
+
+cd <- matchCodes(cas, 
+                 dic, 
+                 level=1,
+                 quietly = TRUE)
+
+plotChord(cd, 
+          from = "term1", 
+          to = "term2",
+          elementId = "ChordTerms")
+
+```
+
+
+
+
+
+
