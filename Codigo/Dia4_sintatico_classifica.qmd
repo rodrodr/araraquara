@@ -1,0 +1,550 @@
+---
+title: "Dia 4 - Análise sintática e classificação"
+author: "Rodrigo Rodrigues-Silveira"
+lang: pt-BR
+format: 
+  html:
+    code-link: true
+    code-fold: true
+    code-overflow: wrap
+    code-summary: "Código"
+    code-annotations: below
+---
+
+## Análise sintática
+
+Muitas vezes, a análise de palavras soltas não é suficiente para entender o seu significado. Por exemplo, "estrela" pode significar tanto um astro celeste como uma pessoa que destaca no seu âmbito profissional. Também pode ser um termo despectivo: "esse cara é muito estrela". Por essa razão, muitas vezes poder ser útil empregar algumas técnicas que ajudem a determinar o contexto e reducir os espaços de ambigüidades.
+
+A análise sintática corresponde ao conjunto de técnicas que ajudam a situar as palavras no seu contexto. Está formada por tres técnicas: *Parts of Speech (POS) Tagging*, o reconhecimento do entidades (*Named Entity Recognition - NER*) e a análise de dependencias (*dependency parsing*). Aqui consideraremos as duas primeiras. 
+
+O primeiro passo é anotar o texto. Para isso necessitamos utilizar algum modelo previamente treinado para atribuir etiquetas às palavras. Utilizaremos aqui o pacote udpipe do R, que contém modelos aceitavelmente precisos para fazer as análises.
+
+**Paso 1: Carrega o corpus de discursos presidenciais**
+
+```{r, warning=F, message=F, error=F}
+
+# Carrega os pacotes básicos
+library(readtext)
+library(quanteda)
+library(stringi)
+
+# Carrega os textos
+tx <- readtext("../../Data/Discursos_Presidentes/")
+
+# Cria o corpus
+cp <- corpus(tx)
+
+# Documenta
+docvars(cp, "Presidente") <- c("Deodoro da Fonseca","Floriano Peixoto",
+                               "Prudente de Moraes","Campos Sales",
+                               "Rodrigues Alvez","Affonso Penna",
+                               "Hermes da Fonseca", "Wenceslau Bras",
+                               "Epitacio Pessoa", "Arthur Bernardes",
+                               "Washingtonn Luis","Getulio Vargas",
+                               "Getulio Vargas","Getulio Vargas",
+                               "Eurico Gaspar Dutra","Getulio Vargas",
+                               "Juscelino Kubitschek", "Janio Quadros",
+                               "Joao Goulart","Castelo Branco",
+                               "Costa e Silva","Emilio Garrastazu Medici",
+                               "Ernesto Geisel", "Joao Batista Figueiredo",
+                               "Jose Sarney", "Tancredo Neves",
+                               "Fernando Collor de Melo", "Itamar Franco",
+                               "Fernando Henrique Cardoso","Fernando Henrique Cardoso",
+                               "Luis Inacio Lula da Silva", "Luis Inacio Lula da Silva",
+                               "Dilma Rousseff","Dilma Rousseff",
+                               "Michel Temer", "Jair Bolsonaro",
+                               "Luis Inacio Lula da Silva")
+
+docvars(cp, "Ano") <- as.numeric(substr(tx$doc_id,1,4))
+
+ce <- corpus_group(cp, Presidente)
+
+```
+
+**Paso 2: Anota o corpus usando o UDPIPE**
+
+```{r, warning=F, message=F, error=F}
+
+# Abre o pacote udpipe para realizar 
+# o etiquetado dos textos
+library(udpipe)
+
+# Descarrega o modelo previamente treinado
+m_pt   <- udpipe_download_model(language = "portuguese")
+
+# Carrega o modelo
+m_pt <- udpipe_load_model(m_pt)
+
+# Gera as anotações e etiquetas
+d <- udpipe_annotate(m_pt, 
+                     x=ce, 
+                     doc_id = docnames(ce)) %>%
+  as.data.frame() %>%
+  dplyr::select(-sentence)
+
+# Visualiza os resultados
+reactable::reactable(d[,c("doc_id",
+                          "sentence_id",
+                          "token_id",
+                          "token",
+                          "lemma",
+                          "upos",
+                          "feats")], 
+                     resizable = T, 
+                     filterable = T)
+
+```
+
+
+
+### POS tagging
+
+
+```{r, warning=F, message=F, error=F, fig.height=8}
+
+# Crea una lista con los partidos
+# que se desean visualizar
+presidente<- c("Luis Inacio Lula da Silva","Fernando Henrique Cardoso")
+
+# Crea una lista para guardar los
+# gráficos de cada partido y no
+# tener que repetir código
+gr <- list()
+
+# para cada partido en la lista
+for(i in 1:length(presidente)){
+  
+  # Selecciona nombres, verbos y adjetivos 
+  # de la base d que fue etiquetada en el
+  # paso anterior
+  adj <- d[which(
+            d$upos%in%c("NOUN",
+                        "VERB",
+                        "ADJ") 
+            & d$doc_id==presidente[i]),]
+
+  # Calcula la frecuencia de cada palabra
+  # por tipo
+  ag <- aggregate(list(freq=adj$lemma),
+                by=list(Tipo=adj$upos,
+                        lemma=adj$lemma),
+                length)
+
+  # Selecciona los 20 más frecuentes
+  # de cada tipo
+  ag <- ag |> 
+    dplyr::slice_max(
+                freq,
+                n=20, 
+                by=Tipo, 
+                with_ties = F)
+
+  # Altera las descripciones para
+  # facilitar el entendimiento del
+  # gráfico
+  ag$Tipo[ag$Tipo=="ADJ"] <- "Adjetivo"
+  ag$Tipo[ag$Tipo=="NOUN"] <- "Nombre"
+  ag$Tipo[ag$Tipo=="VERB"] <- "Verbo"
+
+  # Crea el gráfico de barras
+  # para cada partido y tipo 
+  # gramatical
+  library(ggplot2)
+  library(forcats)
+
+
+  p <- ggplot(
+    ag, aes(x=freq, y=fct_reorder(lemma, freq), fill=Tipo))+
+    geom_bar(stat="identity")+
+    theme_minimal()+
+    theme(panel.grid = element_blank(),
+          plot.title = ggtext::element_markdown(),
+          legend.position = "none")+
+    labs(title=paste0("**",presidente[i],"**"))+
+    ylab("")+xlab("Menciones")+
+    facet_wrap(~Tipo, scales = "free", )
+
+  # Guarda el gráfico de cada partido
+  # en la lista para su posterior
+  # visualización en un panel común
+  gr[[i]] <- p
+
+}
+
+# Organiza los dos gráficos como uno
+library(grid)
+library(gridExtra)
+
+grid.arrange(gr[[1]], gr[[2]])
+
+```
+
+
+
+
+
+```{r}
+
+# Función selPOSTags - selecciona dos etiquetas que
+# aparecen una luego de la otra en una frase
+selPOSTags <- function(data, 
+                       tag_first, 
+                       tag_second, 
+                       docid=NULL, 
+                       source="lemma",
+                       tag.var="upos",
+                       exclude.dyads=TRUE,
+                       n.words=NULL){
+
+  # retira las tildes y convierte a
+  # minúsculas los tokens o lemas 
+  data[[source]] <- tolower(
+                      stringi::stri_trans_general(
+                        data[[source]], 
+                        "ascii"))
+  
+  data$tagvar <- data[[tag.var]]
+  
+  # Unifica las etiquetas para filtrar
+  # los datos
+  tags <- c(tag_first,tag_second)
+  
+  # filta los datos
+  dx <- data[data$tagvar%in%tags,]
+  
+  # Si se define un texto o documento
+  # selecciona solo los elementos de ese
+  # documento 
+  if(!is.null(docid)){
+    dx <- dx[dx$doc_id==docid,]
+  }
+  
+  # genera columnas para:
+  # etiqueta inmediatamente siguiente
+  # término inmediatamente siguiete
+  # número de la setencia del término 
+  # inmediatamente siguiente
+  dx$pos_next <- c(dx$tagvar[2:nrow(dx)],NA)
+  dx$term_next <- c(dx[[source]][2:nrow(dx)],NA)
+  dx$sen_next <- c(dx$sentence_id[2:nrow(dx)],NA)
+  
+  # Mantiene solo combinaciones que se 
+  # encuentren en una misma frase
+  dx <- dx[dx$sentence_id==dx$sen_next,]
+  
+  # Selecciona las combinaciones de 
+  # etiquetas (first=ADJ es second=NOUN, 
+  # por ejemplo). Se pueden utilizar más
+  # de un tag de cada lado (eso aumenta 
+  # las configuraciones posibles y hace
+  # el análisis más complejo).
+  dx <- dx[
+            dx$tagvar%in%tag_first & 
+            dx$pos_next%in%tag_second,]
+  
+  # Crea un contador para averiguar la
+  # frecuencia y agrega por la combinacion
+  # entre terminos  
+  dx$count <- 1
+  ag <- aggregate(list(value=dx$count), 
+                  by=list(from=dx[[source]],
+                          to=dx$term_next),
+                  sum)
+
+  # Cuenta el número de veces que cada
+  # termino aparece. Esto resulta vital
+  # para eliminar las díadas aisladas
+  d1 <- data.frame(table(ag$from))
+  names(d1) <- c("from","ffrm")
+  d2 <- data.frame(table(ag$to))
+  names(d2) <- c("to","fto")
+  ag <- merge(ag, d1, by="from")
+  ag <- merge(ag, d2, by="to")
+
+  # Define cuántas veces aparecen las
+  # dos palabras juntas. Si menos de 
+  # dos, significa que son díadas
+  # aisladas
+  ag$order <- (ag$ffrm+ag$fto/2)
+  
+  # Si queremos excluirlas, aquí se hace 
+  if(exclude.dyads==TRUE){
+    ag <- ag[ag$order>2,]
+  }
+  
+  # Ordena según la frecuencia de forma
+  # descendiente
+  ag <- ag[order(ag$order,
+                 ag$value, 
+                 decreasing = T),]
+  
+  # Si no se establece un número
+  # máximo de palabras a retornar,
+  # selecciona todas.
+  if(is.null(n.words)){
+    n.words <- nrow(ag)
+  }else if(n.words>nrow(ag)){
+    n.words <- nrow(ag)
+  }
+  
+  # Realiza la selección
+  ag <- ag[1:n.words,
+           c("from", "to","value")]
+
+  # Retorna los resultados
+  # al usuario
+  return(ag)
+}
+
+
+```
+
+
+```{r}
+
+# Gera as anotações e etiquetas
+d <- udpipe_annotate(m_pt, 
+                     x=ce, 
+                     doc_id = docnames(ce)) %>%
+  as.data.frame() %>%
+  dplyr::select(-sentence)
+
+
+d <- d[! d$lemma%in%c("grande","ter","fazer","dar","ser","dizer"),]
+
+ag <- selPOSTags(d, 
+                 n.words = 100,
+                 tag_first = c("VERB"), 
+                 tag_second = "NOUN")
+
+# Visualizamos los resultados
+library(tenet)
+
+plotChord(ag)
+
+```
+
+
+## Named Entity Recognition
+
+
+Forma 1: com modelos pré-treinados
+
+```{r}
+
+library(spacyr)
+
+# spacy_install(lang_models = "pt_core_news_lg")
+
+spacy_initialize(model = "pt_core_news_lg")
+
+prs <- spacy_parse(cp)
+
+dx <- prs[prs$entity!="",]
+
+aa <- selPOSTags(dx, exclude.dyads = F,
+                 source = "token",
+                 tag.var = "entity", 
+                 tag_first = "PER_B", 
+                 tag_second = "PER_I")
+
+da <- dx[dx$entity%in%c("PER_B","PER_I") & dx$pos=="PROPN",]
+
+spacy_finalize()
+
+
+reactable::reactable(da, 
+          resizable = T, 
+          filterable = T)
+
+```
+
+
+Forma 2: com expressões regulares
+
+```{r}
+
+pat <- "(([A-Z][a-zA-Z]+)(\\s)([a-z]+)(?=\\s[A-Z])(?:\\s[A-Z][a-zA-Z]+)+)|(([A-Z][a-z]+)(?=\\s[A-Z])(?:\\s[A-Z][a-zA-Z]+)+)"
+
+kw <- stri_extract_all(stri_trans_general(tx$text, "ascii"), 
+                       regex = pat, simplify=T)
+
+kw <- data.frame(kw)
+
+kw$doc_id <- tx$doc_id
+
+library(reshape2)
+
+kw <- melt(kw,id="doc_id")
+
+kw$variable <- NULL
+
+kw <- kw[kw$value!="" & ! is.na(kw$value),]
+
+reactable::reactable(kw, 
+          resizable = T, 
+          filterable = T)
+
+```
+
+
+## Classificação
+
+
+### Análise de cluster
+
+
+
+```{r, fig.height=8}
+
+
+library(quanteda)
+library(quanteda.textstats)
+
+tk <- tokens(cp)
+df <- dfm(tk)
+df <- dfm_remove(df, stopwords("pt"))
+
+dis <- as.dist(textstat_dist(df))
+clust <- hclust(dis)
+
+plot(clust, xlab = "Distance", ylab = NULL)
+
+```
+
+
+```{r}
+
+forceClusTree(cp, 
+              maxRadius = 8,
+              lang = "pt")
+
+```
+
+
+### Rainette
+
+
+```{r, warning=F, message=F, error=F, fig.height=8}
+
+library(rainette)
+
+tk <- tokens(cp, 
+             remove_numbers = T, 
+             remove_symbols = T, 
+             remove_punct = T)
+
+tk <- tokens_remove(tk, 
+                    stopwords("pt"))
+
+tf <- dfm(tk)
+
+rn <- rainette(tf, k = 20)
+
+rainette_plot(rn, tf)
+
+
+```
+
+
+### LDA
+
+
+```{r}
+
+library(quanteda)
+library(quanteda.textmodels)
+
+tk <- tokens(cp, 
+             remove_punct = TRUE, 
+             remove_numbers = TRUE, 
+             remove_symbol = TRUE)
+
+tk <- tokens_remove(tk, 
+                    stopwords("pt"))
+
+df <- dfm(tk) %>% 
+        dfm_trim(
+            min_termfreq = 0.8, 
+            termfreq_type = "quantile",
+            max_docfreq = 0.1, 
+            docfreq_type = "prop")
+
+
+library(topicmodels)
+
+tp <- LDA(df, k = 5)
+
+tr <- terms(tp, k=10)
+
+library(reactable)
+
+reactable(tr)
+
+```
+
+
+
+```{r}
+
+
+tpa <- topics(tp)
+
+tpa <- data.frame(topico=tpa, documento=names(tpa))
+
+row.names(tpa) <- 1:nrow(tpa)
+
+reactable(tpa, resizable = T)
+
+```
+
+
+
+Probabilidades de uma palavra pertencer a um tópico:
+
+```{r}
+
+library(tidytext)
+
+ap <- tidy(tp, matrix = "beta")
+
+ap$beta <- round(ap$beta, 4)
+
+ap <- ap[ap$beta>0,]
+
+ap <- ap[order(ap$term, -ap$beta),]
+
+reactable(ap, resizable = T)
+
+```
+
+
+Porcentagem do teto
+
+
+```{r}
+
+ap <- tidy(tp, matrix = "gamma")
+
+ap$gamma <- round(ap$gamma, 4)
+
+ap <- ap[ap$gamma>0,]
+
+ap <- ap[order(ap$topic, -ap$gamma),]
+
+reactable(ap, resizable = T)
+
+
+```
+
+
+```{r}
+
+
+ggplot(ap, aes(y=document, x=gamma))+
+  geom_boxplot()+
+  theme_minimal()+
+  theme(panel.grid = element_blank())
+
+```
+
