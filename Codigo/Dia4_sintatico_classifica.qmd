@@ -343,13 +343,13 @@ Aqui utilizaremos duas formas de extrair as entidades.
 
 Forma 1: com modelos pré-treinados
 
-```{r}
+```{r, eval=FALSE}
 
 library(spacyr)
 
 # Se o modelo não estiver instalado,
 # instalá-lo (só uma vez) com o comando
-# abaixo
+# abaixo (precisa do python instalado no computador)
 # spacy_install(lang_models = "pt_core_news_lg")
 
 # Carrega o modelo
