@@ -102,35 +102,35 @@ reactable::reactable(d[,c("doc_id",
 
 ```{r, warning=F, message=F, error=F, fig.height=8}
 
-# Crea una lista con los partidos
-# que se desean visualizar
+# Cria uma lista com os presidentes
+# que se desejam visualizar
 presidente<- c("Luis Inacio Lula da Silva","Fernando Henrique Cardoso")
 
-# Crea una lista para guardar los
-# gráficos de cada partido y no
-# tener que repetir código
+# Cria uma lista para guardar os
+# gráficos de cada presidente e não
+# ter que repetir código
 gr <- list()
 
-# para cada partido en la lista
+# para cada presidente na lista
 for(i in 1:length(presidente)){
   
-  # Selecciona nombres, verbos y adjetivos 
-  # de la base d que fue etiquetada en el
-  # paso anterior
+  # Seleciona nomes, verbos e adjetivos 
+  # da base que foi etiquetada no
+  # passo anterior
   adj <- d[which(
             d$upos%in%c("NOUN",
                         "VERB",
                         "ADJ") 
             & d$doc_id==presidente[i]),]
 
-  # Calcula la frecuencia de cada palabra
+  # Calcula a frequência de cada palavra
   # por tipo
   ag <- aggregate(list(freq=adj$lemma),
                 by=list(Tipo=adj$upos,
                         lemma=adj$lemma),
                 length)
 
-  # Selecciona los 20 más frecuentes
+  # Seleciona os 20 mais frequentes
   # de cada tipo
   ag <- ag |> 
     dplyr::slice_max(
@@ -139,15 +139,15 @@ for(i in 1:length(presidente)){
                 by=Tipo, 
                 with_ties = F)
 
-  # Altera las descripciones para
-  # facilitar el entendimiento del
+  # Altera as descrições para
+  # facilitar o entendimento do
   # gráfico
   ag$Tipo[ag$Tipo=="ADJ"] <- "Adjetivo"
   ag$Tipo[ag$Tipo=="NOUN"] <- "Nombre"
   ag$Tipo[ag$Tipo=="VERB"] <- "Verbo"
 
-  # Crea el gráfico de barras
-  # para cada partido y tipo 
+  # Cria o gráfico de barras
+  # para cada partido e tipo 
   # gramatical
   library(ggplot2)
   library(forcats)
@@ -164,14 +164,14 @@ for(i in 1:length(presidente)){
     ylab("")+xlab("Menciones")+
     facet_wrap(~Tipo, scales = "free", )
 
-  # Guarda el gráfico de cada partido
-  # en la lista para su posterior
-  # visualización en un panel común
+  # Salva o gráfico de cada partido
+  # na lista para sua posterior
+  # visualização em um painel comum
   gr[[i]] <- p
 
 }
 
-# Organiza los dos gráficos como uno
+# Organiza os dois gráficos como um
 library(grid)
 library(gridExtra)
 
@@ -185,8 +185,8 @@ grid.arrange(gr[[1]], gr[[2]])
 
 ```{r}
 
-# Función selPOSTags - selecciona dos etiquetas que
-# aparecen una luego de la otra en una frase
+# Função selPOSTags - seleciona duas etiquetas que
+# aparecem uma depois da outra em uma frase
 selPOSTags <- function(data, 
                        tag_first, 
                        tag_second, 
@@ -196,8 +196,8 @@ selPOSTags <- function(data,
                        exclude.dyads=TRUE,
                        n.words=NULL){
 
-  # retira las tildes y convierte a
-  # minúsculas los tokens o lemas 
+  # retira os acentos e converte em
+  # minúsculas os tokens ou lemas 
   data[[source]] <- tolower(
                       stringi::stri_trans_general(
                         data[[source]], 
@@ -205,55 +205,55 @@ selPOSTags <- function(data,
   
   data$tagvar <- data[[tag.var]]
   
-  # Unifica las etiquetas para filtrar
-  # los datos
+  # Unifica as etiquetas para filtrar
+  # os dados
   tags <- c(tag_first,tag_second)
   
-  # filta los datos
+  # filta os dados
   dx <- data[data$tagvar%in%tags,]
   
-  # Si se define un texto o documento
-  # selecciona solo los elementos de ese
+  # Se se define um texto ou documento,
+  # seleciona só os elementos desse
   # documento 
   if(!is.null(docid)){
     dx <- dx[dx$doc_id==docid,]
   }
   
-  # genera columnas para:
-  # etiqueta inmediatamente siguiente
-  # término inmediatamente siguiete
-  # número de la setencia del término 
-  # inmediatamente siguiente
+  # gera colunas para:
+  # etiqueta imediatamente posterior
+  # termo imediatamente posterior
+  # número da frase do termo 
+  # imediatamente posterior
   dx$pos_next <- c(dx$tagvar[2:nrow(dx)],NA)
   dx$term_next <- c(dx[[source]][2:nrow(dx)],NA)
   dx$sen_next <- c(dx$sentence_id[2:nrow(dx)],NA)
   
-  # Mantiene solo combinaciones que se 
-  # encuentren en una misma frase
+  # Mantém somente combinações que se 
+  # encontram em uma mesma frase
   dx <- dx[dx$sentence_id==dx$sen_next,]
   
-  # Selecciona las combinaciones de 
-  # etiquetas (first=ADJ es second=NOUN, 
-  # por ejemplo). Se pueden utilizar más
-  # de un tag de cada lado (eso aumenta 
-  # las configuraciones posibles y hace
-  # el análisis más complejo).
+  # Seleciona as combinações de 
+  # etiquetas (first=ADJ e second=NOUN, 
+  # por exemplo). Pode-se utilizar mais
+  # de um tag de cada lado (isso aumenta 
+  # as configurações possíveis e torna
+  # a análise mais complexa).
   dx <- dx[
             dx$tagvar%in%tag_first & 
             dx$pos_next%in%tag_second,]
   
-  # Crea un contador para averiguar la
-  # frecuencia y agrega por la combinacion
-  # entre terminos  
+  # Cria um contador para verificar a
+  # frequência e agrega pela combinação
+  # entre termos  
   dx$count <- 1
   ag <- aggregate(list(value=dx$count), 
                   by=list(from=dx[[source]],
                           to=dx$term_next),
                   sum)
 
-  # Cuenta el número de veces que cada
-  # termino aparece. Esto resulta vital
-  # para eliminar las díadas aisladas
+  # Conta o número de vezes que cada
+  # termo aparece. Isto é vital
+  # para eliminar as díadas isoladas
   d1 <- data.frame(table(ag$from))
   names(d1) <- c("from","ffrm")
   d2 <- data.frame(table(ag$to))
@@ -261,38 +261,38 @@ selPOSTags <- function(data,
   ag <- merge(ag, d1, by="from")
   ag <- merge(ag, d2, by="to")
 
-  # Define cuántas veces aparecen las
-  # dos palabras juntas. Si menos de 
-  # dos, significa que son díadas
-  # aisladas
+  # Define quantas vezes aparecem as
+  # duas palavras juntas. Se menos de 
+  # duas, significa que são díadas
+  # isoladas
   ag$order <- (ag$ffrm+ag$fto/2)
   
-  # Si queremos excluirlas, aquí se hace 
+  # Se queremos exclui-las, aquí: 
   if(exclude.dyads==TRUE){
     ag <- ag[ag$order>2,]
   }
   
-  # Ordena según la frecuencia de forma
-  # descendiente
+  # Ordena de acordo com a frequencia
+  # de forma descendente
   ag <- ag[order(ag$order,
                  ag$value, 
                  decreasing = T),]
   
-  # Si no se establece un número
-  # máximo de palabras a retornar,
-  # selecciona todas.
+  # Se não se estabelece um número
+  # máximo de palavras a retornar,
+  # seleciona todas.
   if(is.null(n.words)){
     n.words <- nrow(ag)
   }else if(n.words>nrow(ag)){
     n.words <- nrow(ag)
   }
   
-  # Realiza la selección
+  # Realiza la seleção
   ag <- ag[1:n.words,
            c("from", "to","value")]
 
-  # Retorna los resultados
-  # al usuario
+  # Retorna os resultados
+  # para o usuário
   return(ag)
 }
 
@@ -310,14 +310,25 @@ d <- udpipe_annotate(m_pt,
   dplyr::select(-sentence)
 
 
-d <- d[! d$lemma%in%c("grande","ter","fazer","dar","ser","dizer"),]
+# Elimina algumas que são comuns
+# demais e, nesse caso, não ajudam
+# muito a entender os padrões
+d <- d[! d$lemma%in%c("grande",
+                      "ter",
+                      "fazer",
+                      "dar",
+                      "ser",
+                      "dizer"),]
 
+# Aplica a função que seleciona
+# as etiquetas, nesse caso verbos
+# seguiddos de substantivos
 ag <- selPOSTags(d, 
                  n.words = 100,
                  tag_first = c("VERB"), 
                  tag_second = "NOUN")
 
-# Visualizamos los resultados
+# Visualizamos os resultados
 library(tenet)
 
 plotChord(ag)
@@ -328,31 +339,38 @@ plotChord(ag)
 ## Named Entity Recognition
 
 
+Aqui utilizaremos duas formas de extrair as entidades.
+
 Forma 1: com modelos pré-treinados
 
 ```{r}
 
 library(spacyr)
 
+# Se o modelo não estiver instalado,
+# instalá-lo (só uma vez) com o comando
+# abaixo
 # spacy_install(lang_models = "pt_core_news_lg")
 
+# Carrega o modelo
 spacy_initialize(model = "pt_core_news_lg")
 
+# Anota o corpus
 prs <- spacy_parse(cp)
 
-dx <- prs[prs$entity!="",]
-
-aa <- selPOSTags(dx, exclude.dyads = F,
-                 source = "token",
-                 tag.var = "entity", 
-                 tag_first = "PER_B", 
-                 tag_second = "PER_I")
-
-da <- dx[dx$entity%in%c("PER_B","PER_I") & dx$pos=="PROPN",]
-
+# Finaliza o modelo
 spacy_finalize()
 
+# Elimina as palavras que não 
+# correspondem a entidades
+dx <- prs[prs$entity!="",]
 
+# Seleciona só entidades identificadas
+# como pessoas
+da <- dx[dx$entity%in%c("PER_B","PER_I") 
+         & dx$pos=="PROPN",]
+
+# Visualiza os resultados
 reactable::reactable(da, 
           resizable = T, 
           filterable = T)
@@ -364,23 +382,33 @@ Forma 2: com expressões regulares
 
 ```{r}
 
+# Expressão regular que seleciona os seguintes padroes:
+# 1) Palavra iniciada por maiúscula seguida por espaco e palavra com minúscula, logo seguida de uma ou mais com maiúscula: Paulo de Tarso Mendes, por exemplo.
+# 2) Palavras todas iniciadas por maiúsculas: Companhia Siderúrgica Nacional. 
 pat <- "(([A-Z][a-zA-Z]+)(\\s)([a-z]+)(?=\\s[A-Z])(?:\\s[A-Z][a-zA-Z]+)+)|(([A-Z][a-z]+)(?=\\s[A-Z])(?:\\s[A-Z][a-zA-Z]+)+)"
 
+# Extrai os valores do texto
 kw <- stri_extract_all(stri_trans_general(tx$text, "ascii"), 
                        regex = pat, simplify=T)
 
+# Converte em data.frame
 kw <- data.frame(kw)
 
+# Associa o nome do documento
+# aos resultados
 kw$doc_id <- tx$doc_id
 
+# Altera o formato de wide (amplo)
+# para longo
 library(reshape2)
-
 kw <- melt(kw,id="doc_id")
 
+# Elimina as variáveis e 
+# valores desnecessários
 kw$variable <- NULL
-
 kw <- kw[kw$value!="" & ! is.na(kw$value),]
 
+# Visualiza os resultados
 reactable::reactable(kw, 
           resizable = T, 
           filterable = T)
@@ -397,17 +425,28 @@ reactable::reactable(kw,
 
 ```{r, fig.height=8}
 
-
+# Carrega os pacotes
 library(quanteda)
 library(quanteda.textstats)
 
-tk <- tokens(cp)
+# Cria os tokens e as
+# matrizes de frequência de termos
+tk <- tokens(cp, 
+             remove_numbers = T,
+             remove_symbols = T, 
+             remove_punct = T)
 df <- dfm(tk)
+
+# Retira os stowords
 df <- dfm_remove(df, stopwords("pt"))
 
+# Calcula as distâncias
 dis <- as.dist(textstat_dist(df))
+
+# Faz a análise de cluster
 clust <- hclust(dis)
 
+# Visualiza os resultados
 plot(clust, xlab = "Distance", ylab = NULL)
 
 ```
@@ -415,6 +454,8 @@ plot(clust, xlab = "Distance", ylab = NULL)
 
 ```{r}
 
+# Faz a mesma coisa, mas com 
+# um gráfico interativo
 forceClusTree(cp, 
               maxRadius = 8,
               lang = "pt")
@@ -427,8 +468,11 @@ forceClusTree(cp,
 
 ```{r, warning=F, message=F, error=F, fig.height=8}
 
+# Carrega o pacote de classificação
+# baseada no método de Reinert
 library(rainette)
 
+# Repete os passos básicos
 tk <- tokens(cp, 
              remove_numbers = T, 
              remove_symbols = T, 
@@ -439,6 +483,7 @@ tk <- tokens_remove(tk,
 
 tf <- dfm(tk)
 
+# Aplica o método 
 rn <- rainette(tf, k = 20)
 
 rainette_plot(rn, tf)
@@ -452,8 +497,9 @@ rainette_plot(rn, tf)
 
 ```{r}
 
+
+# Repete os passos anteriores
 library(quanteda)
-library(quanteda.textmodels)
 
 tk <- tokens(cp, 
              remove_punct = TRUE, 
@@ -470,15 +516,18 @@ df <- dfm(tk) %>%
             max_docfreq = 0.1, 
             docfreq_type = "prop")
 
-
+# Carrega o modelo do LDA
 library(topicmodels)
 
+# Realiza o LDA
 tp <- LDA(df, k = 5)
 
+# Extrai os termos principais
+# de cada categoria
 tr <- terms(tp, k=10)
 
+# Visualiza
 library(reactable)
-
 reactable(tr)
 
 ```
@@ -487,9 +536,12 @@ reactable(tr)
 
 ```{r}
 
-
+# Agora extrai os tópicos que 
+# predominan em cada documento
 tpa <- topics(tp)
 
+# Melhora a apresentação para
+# facilitar a visualização
 tpa <- data.frame(topico=tpa, documento=names(tpa))
 
 row.names(tpa) <- 1:nrow(tpa)
@@ -504,6 +556,9 @@ Probabilidades de uma palavra pertencer a um tópico:
 
 ```{r}
 
+# Visualiza a probabilidade 
+# de uma palavra pertencer a um
+# tópico (estatística beta)
 library(tidytext)
 
 ap <- tidy(tp, matrix = "beta")
@@ -519,11 +574,14 @@ reactable(ap, resizable = T)
 ```
 
 
-Porcentagem do teto
+Porcentagem do texto
 
 
 ```{r}
 
+# Visualiza a porcentagem do
+# documento correspondente a cada
+# tópico (estatística gama)
 ap <- tidy(tp, matrix = "gamma")
 
 ap$gamma <- round(ap$gamma, 4)
@@ -540,7 +598,7 @@ reactable(ap, resizable = T)
 
 ```{r}
 
-
+# Gera um gráfico com o gamma
 ggplot(ap, aes(y=document, x=gamma))+
   geom_boxplot()+
   theme_minimal()+
